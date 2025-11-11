@@ -1,5 +1,7 @@
 using Unity.Entities;
 using UnityEngine;
+using PGD;
+using PGD.Jobs;
 
 namespace Tutorials.Kickball.Step1
 {
@@ -11,14 +13,14 @@ namespace Tutorials.Kickball.Step1
         // the prescribed style, but it's not a requirement.
         // The name of the baker class doesn't really matter: the important part is that we've
         // defined a class inheriting Baker<ObstacleAuthoring>.
-        class Baker : Baker<ObstacleAuthoring>
+        [PGDHybridOptions(autoInstantiate: true)]
+        class Baker : PGDHybrid<ObstacleAuthoring>
         {
             // Bake() is called every time the authoring component gets re-baked.
             // The authoring component is passed to the parameter (though in this case we ignore the parameter).
-            public override void Bake(ObstacleAuthoring authoring)
+            public override void Handle(ObstacleAuthoring authoring)
             {
-                var entity = GetEntity(TransformUsageFlags.Dynamic);
-
+                var entity = GetHybridEntity();
                 // Add the Obstacle component to the entity produced in baking
                 // from the authoring component's GameObject.
                 AddComponent<Obstacle>(entity);
@@ -28,11 +30,11 @@ namespace Tutorials.Kickball.Step1
 
     // Basic entity component types are defined by a struct implementing IComponentData.
     // The interface has no methods: it simply marks the type as a component type.
-    public struct Obstacle : IComponentData
+    public struct Obstacle : IComponent
     {
-        // The struct can include any unmanaged fields, but in this case we leave it empty.
-        // An empty struct is called a "tag component". Though they contain no data, tag components can
-        // still be queried like any other component type, and so they are useful for marking entities.
-        // This Obstacle tag component is added to all obstacle entities so that we can query for all obstacles.
+    // The struct can include any unmanaged fields, but in this case we leave it empty.
+    // An empty struct is called a "tag component". Though they contain no data, tag components can
+    // still be queried like any other component type, and so they are useful for marking entities.
+    // This Obstacle tag component is added to all obstacle entities so that we can query for all obstacles.
     }
 }

@@ -4,54 +4,42 @@ using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
+using PGD;
+using PGD.Jobs;
 
 namespace Tutorials.Kickball.Step2
 {
-    [UpdateAfter(typeof(ObstacleSpawnerSystem))]
-    [UpdateBefore(typeof(TransformSystemGroup))]
-    public partial struct PlayerSpawnerSystem : ISystem
+    [UpdateSystemAfter(typeof(ObstacleSpawnerSystem))]
+    [UpdateSystemBefore(typeof(TransformSystemGroup))]
+    public partial class PlayerSpawnerSystem : PGDSystemEnhanced
     {
         [BurstCompile]
-        public void OnCreate(ref SystemState state)
+        protected override void OnCreate(ref PGDSystemState state)
         {
             state.RequireForUpdate<PlayerSpawner>();
             state.RequireForUpdate<Config>();
         }
 
         [BurstCompile]
-        public void OnUpdate(ref SystemState state)
+        protected override void OnUpdate(ref PGDSystemState state)
         {
             // We only want to spawn players in one frame. Disabling the system stops it from updating again after this one time.
             state.Enabled = false;
-
-            var config = SystemAPI.GetSingleton<Config>();
-
-            #if true
-                // higher-level API
-                // This "foreach query" is transformed by source-gen into code resembling the #else below.
-                // For every entity having a LocalTransform and Obstacle component, a read-only reference to
-                // the LocalTransform is assigned to 'obstacleTransform'.
-                foreach (var obstacleTransform in
-                         SystemAPI.Query<RefRO<LocalTransform>>().
-                             WithAll<Obstacle>())
-                {
-                    // Create a player entity from the prefab.
-                    var player = state.EntityManager.Instantiate(config.PlayerPrefab);
-
-                    // Set the new player's transform (a position offset from the obstacle).
-                    state.EntityManager.SetComponentData(player, new LocalTransform
-                    {
-                        Position = new float3
-                        {
-                            x = obstacleTransform.ValueRO.Position.x + config.PlayerOffset,
-                            y = 1,
-                            z = obstacleTransform.ValueRO.Position.z + config.PlayerOffset
-                        },
-                        Scale = 1,  // If we didn't set Scale and Rotation, they would default to zero (which is bad!)
-                        Rotation = quaternion.identity
-                    });
-                }
-            #else
+            var config = PGDGameContext.GetSingleton<Config>();
+#if true
+            // higher-level API
+            // This "foreach query" is transformed by source-gen into code resembling the #else below.
+            // For every entity having a LocalTransform and Obstacle component, a read-only reference to
+            // the LocalTransform is assigned to 'obstacleTransform'.
+            foreach (var obstacleTransform in PGDGameContext.QueryForeach<PGDRefRO<PGDLocalTransform>>().WithAll<Obstacle>())
+            {
+                // Create a player entity from the prefab.
+                var player = state.World.Instantiate(config.PlayerPrefab);
+                // Set the new player's transform (a position offset from the obstacle).
+                player.Set(new PGDLocalTransform { Position = new float3 { x = obstacleTransform.ValueRO.Position.x + config.PlayerOffset, y = 1, z = obstacleTransform.ValueRO.Position.z + config.PlayerOffset }, Scale = 1, // If we didn't set Scale and Rotation, they would default to zero (which is bad!)
+ Rotation = quaternion.identity });
+            }
+#else
                 // lower-level API
                 // Get a query that matches all entities which have both a LocalTransform and Obstacle component.
                 var query = SystemAPI.QueryBuilder().WithAll<LocalTransform, Obstacle>().Build();
@@ -90,7 +78,7 @@ namespace Tutorials.Kickball.Step2
                         });
                     }
                 }
-            #endif
+#endif
         }
     }
 }

@@ -3,6 +3,8 @@ using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
+using PGD;
+using PGD.Jobs;
 
 namespace Tutorials.Kickball.Step1
 {
@@ -11,22 +13,19 @@ namespace Tutorials.Kickball.Step1
     // obstacles we spawn will have their rendering matrix computed in the same frame rather than the next frame.
     // (In this case, most players wouldn't notice the difference without this attribute: obstacles would just
     // appear one frame later.)
-    [UpdateBefore(typeof(TransformSystemGroup))]
-    public partial struct ObstacleSpawnerSystem : ISystem
+    // [UpdateSystemBefore(typeof(TransformSystemGroup))]
+    public partial class ObstacleSpawnerSystem : PGDSystemEnhanced
     {
         [BurstCompile]
-        public void OnCreate(ref SystemState state)
+        protected override void OnCreate(ref PGDSystemState state)
         {
             // RequireForUpdate<T> causes the system to skip updates
             // as long as no instances of component T exist in the world.
-
             // Normally a system will start updating before the main scene is loaded. By using RequireForUpdate,
             // we can make a system skip updating until certain components are loaded from the scene.
-
             // This system needs to access the singleton component Config, which
             // won't exist until the scene has loaded.
             state.RequireForUpdate<Config>();
-
             // The Execute* components in this sample are used to control which systems run in which scenes.
             // By adding the ExecuteAuthoring component to a GameObject in the sub scene and 
             // checking the ObstacleSpawner checkbox, an instance of this type will be created in 
@@ -35,20 +34,17 @@ namespace Tutorials.Kickball.Step1
         }
 
         [BurstCompile]
-        public void OnUpdate(ref SystemState state)
+        protected override void OnUpdate(ref PGDSystemState state)
         {
             // We only want to spawn obstacles one time. Disabling the system stops subsequent updates.
             state.Enabled = false;
-
             // GetSingleton and SetSingleton are conveniences for accessing
             // a "singleton" component (a component type that only one entity has).
             // If 0 entities or 2 or more entities have the Config component, this GetSingleton() call will throw.
-            var config = SystemAPI.GetSingleton<Config>();
-
+            var config = PGDGameContext.GetSingleton<Config>();
             // For simplicity and consistency, we'll use a fixed random seed value.
             var rand = new Random(123);
             var scale = config.ObstacleRadius * 2;
-
             // Spawn the obstacles in a grid.
             for (int column = 0; column < config.NumColumns; column++)
             {
@@ -56,20 +52,9 @@ namespace Tutorials.Kickball.Step1
                 {
                     // Instantiate copies an entity: a new entity is created with all the same component types
                     // and component values as the ObstaclePrefab entity.
-                    var obstacle = state.EntityManager.Instantiate(config.ObstaclePrefab);
-
+                    var obstacle = state.World.Instantiate(config.ObstaclePrefab);
                     // Position the new obstacle by setting its LocalTransform component.
-                    state.EntityManager.SetComponentData(obstacle, new LocalTransform
-                    {
-                        Position = new float3
-                        {
-                            x = (column * config.ObstacleGridCellSize) + rand.NextFloat(config.ObstacleOffset),
-                            y = 0,
-                            z = (row * config.ObstacleGridCellSize) + rand.NextFloat(config.ObstacleOffset)
-                        },
-                        Scale = scale,
-                        Rotation = quaternion.identity
-                    });
+                    obstacle.Set(new PGDLocalTransform { Position = new float3 { x = (column * config.ObstacleGridCellSize) + rand.NextFloat(config.ObstacleOffset), y = 0, z = (row * config.ObstacleGridCellSize) + rand.NextFloat(config.ObstacleOffset) }, Scale = scale, Rotation = quaternion.identity });
                 }
             }
         }

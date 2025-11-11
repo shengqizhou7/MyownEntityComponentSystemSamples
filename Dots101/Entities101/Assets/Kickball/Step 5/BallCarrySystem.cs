@@ -7,31 +7,29 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
+using PGD;
+using PGD.Jobs;
 
 namespace Tutorials.Kickball.Step5
 {
-    [UpdateBefore(typeof(BallMovementSystem))]
-    public partial struct BallCarrySystem : ISystem
+    [UpdateSystemBefore(typeof(BallMovementSystem))]
+    public partial class BallCarrySystem : PGDSystemEnhanced
     {
         static readonly float3 CarryOffset = new float3(0, 2, 0);
-
         [BurstCompile]
-        public void OnCreate(ref SystemState state)
+        protected override void OnCreate(ref PGDSystemState state)
         {
             state.RequireForUpdate<BallCarry>();
         }
 
         [BurstCompile]
-        public void OnUpdate(ref SystemState state)
+        protected override void OnUpdate(ref PGDSystemState state)
         {
-            var config = SystemAPI.GetSingleton<Config>();
-
+            var config = PGDGameContext.GetSingleton<Config>();
             // move carried balls
-            foreach (var (ballTransform, carrier) in
-                     SystemAPI.Query<RefRW<LocalTransform>, RefRO<Carry>>()
-                         .WithAll<Ball>())
+            foreach (var(ballTransform, carrier)in PGDGameContext.QueryForeach<PGDRefRW<PGDLocalTransform>, PGDRefRO<Carry>>().WithAll<Ball>())
             {
-                var playerTransform = state.EntityManager.GetComponentData<LocalTransform>(carrier.ValueRO.Target);
+                var playerTransform = carrier.ValueRO.Target.GetComponent<PGDLocalTransform>();
                 ballTransform.ValueRW.Position = playerTransform.Position + CarryOffset;
             }
 
@@ -40,52 +38,38 @@ namespace Tutorials.Kickball.Step5
                 return;
             }
 
-            foreach (var (playerTransform, playerEntity) in
-                     SystemAPI.Query<RefRW<LocalTransform>>()
-                         .WithAll<Player>()
-                         .WithEntityAccess())
-            {
-                if (state.EntityManager.IsComponentEnabled<Carry>(playerEntity))
-                {
-                    // put down ball
-                    var carried = state.EntityManager.GetComponentData<Carry>(playerEntity);
-
-                    var ballTransform = state.EntityManager.GetComponentData<LocalTransform>(carried.Target);
-                    ballTransform.Position = playerTransform.ValueRO.Position;
-                    state.EntityManager.SetComponentData(carried.Target, ballTransform);
-
-                    state.EntityManager.SetComponentEnabled<Carry>(carried.Target, false);
-                    state.EntityManager.SetComponentEnabled<Carry>(playerEntity, false);
-
-                    state.EntityManager.SetComponentData(carried.Target, new Carry());
-                    state.EntityManager.SetComponentData(playerEntity, new Carry());
-                }
-                else
-                {
-                    // pick up first ball in range
-                    foreach (var (ballTransform, ballEntity) in
-                             SystemAPI.Query<RefRO<LocalTransform>>()
-                                 .WithAll<Ball>()
-                                 .WithDisabled<Carry>()
-                                 .WithEntityAccess())
-                    {
-                        float distSQ = math.distancesq(playerTransform.ValueRO.Position,
-                            ballTransform.ValueRO.Position);
-
-                        if (distSQ <= config.BallKickingRangeSQ)
-                        {
-                            state.EntityManager.SetComponentData(ballEntity, new Velocity());
-
-                            state.EntityManager.SetComponentData(playerEntity, new Carry { Target = ballEntity });
-                            state.EntityManager.SetComponentData(ballEntity, new Carry { Target = playerEntity });
-
-                            state.EntityManager.SetComponentEnabled<Carry>(playerEntity, true);
-                            state.EntityManager.SetComponentEnabled<Carry>(ballEntity, true);
-                            break;
-                        }
-                    }
-                }
-            }
+            // foreach (var(playerTransform, playerEntity)in PGDGameContext.QueryForeach<PGDRefRW<PGDLocalTransform>>().WithAll<Player>().WithEntityAccess())
+            // {
+            //     if (state.World.IsComponentEnabled<Carry>(playerEntity))
+            //     {
+            //         // put down ball
+            //         var carried = playerEntity.GetComponent<Carry>();
+            //         var ballTransform = carried.Target.GetComponent<PGDLocalTransform>();
+            //         ballTransform.Position = playerTransform.ValueRO.Position;
+            //         carried.Target.Set(ballTransform);
+            //         state.World.SetComponentEnabled<Carry>(carried.Target, false);
+            //         state.World.SetComponentEnabled<Carry>(playerEntity, false);
+            //         carried.Target.Set(new Carry());
+            //         playerEntity.Set(new Carry());
+            //     }
+            //     else
+            //     {
+            //         // pick up first ball in range
+            //         foreach (var(ballTransform, ballEntity)in PGDGameContext.QueryForeach<PGDRefRO<PGDLocalTransform>>().WithAll<Ball>().WithDisabled<Carry>().WithEntityAccess())
+            //         {
+            //             float distSQ = math.distancesq(playerTransform.ValueRO.Position, ballTransform.ValueRO.Position);
+            //             if (distSQ <= config.BallKickingRangeSQ)
+            //             {
+            //                 ballEntity.Set(new Velocity());
+            //                 playerEntity.Set(new Carry { Target = ballEntity });
+            //                 ballEntity.Set(new Carry { Target = playerEntity });
+            //                 state.World.SetComponentEnabled<Carry>(playerEntity, true);
+            //                 state.World.SetComponentEnabled<Carry>(ballEntity, true);
+            //                 break;
+            //             }
+            //         }
+            //     }
+            // }
         }
     }
 }

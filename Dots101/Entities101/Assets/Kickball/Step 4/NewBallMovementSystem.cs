@@ -7,31 +7,32 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
+using PGD;
+using PGD.Jobs;
 
 namespace Tutorials.Kickball.Step4
 {
-    [UpdateBefore(typeof(TransformSystemGroup))]
-    public partial struct NewBallMovementSystem : ISystem
+    [UpdateSystemBefore(typeof(TransformSystemGroup))]
+    public partial class NewBallMovementSystem : PGDJobSystemBase
     {
         [BurstCompile]
-        public void OnCreate(ref SystemState state)
+        protected override void OnCreate(ref PGDSystemState state)
         {
             state.RequireForUpdate<NewBallMovement>();
             state.RequireForUpdate<Config>();
         }
 
         [BurstCompile]
-        public void OnUpdate(ref SystemState state)
+        protected override void OnUpdate(ref PGDSystemState state)
         {
-            var config = SystemAPI.GetSingleton<Config>();
-            var obstacleQuery = SystemAPI.QueryBuilder().WithAll<LocalTransform, Obstacle>().Build();
+            var config = PGDGameContext.GetSingleton<Config>();
+            var obstacleQuery = PGDGameContext.BuildQuery().WithAllComponents(IComponents.Get<PGDLocalTransform, Obstacle>());
             var minDist = config.ObstacleRadius + 0.5f; // the ball radius is 0.5f
-
             var job = new BallMovementJob
             {
-                ObstacleTransforms = obstacleQuery.ToComponentDataArray<LocalTransform>(state.WorldUpdateAllocator),
-                DecayFactor = config.BallVelocityDecay * SystemAPI.Time.DeltaTime,
-                DeltaTime = SystemAPI.Time.DeltaTime,
+                ObstacleTransforms = obstacleQuery.ToComponentDataArray<PGDLocalTransform>(state.WorldUpdateAllocator),
+                DecayFactor = config.BallVelocityDecay * PGDGameContext.Time.DeltaTime,
+                DeltaTime = PGDGameContext.Time.DeltaTime,
                 MinDistToObstacleSQ = minDist * minDist
             };
             job.ScheduleParallel();
@@ -39,17 +40,17 @@ namespace Tutorials.Kickball.Step4
     }
 
     // The implicit query of this IJobEntity matches all entities having LocalTransform, Velocity, and Ball components.
-    [WithAll(typeof(Ball))]
-    [WithDisabled(typeof(Carry))]  // Relevant in Step 5
+    [WithAllComponents(typeof(Ball))]
+    [WithDisabled(typeof(Carry))] // Relevant in Step 5
     [BurstCompile]
-    public partial struct BallMovementJob : IJobEntity
+    public partial struct BallMovementJob : IJobParallel
     {
-        [ReadOnly] public NativeArray<LocalTransform> ObstacleTransforms;
+        [ReadOnly]
+        public NativeArray<PGDLocalTransform> ObstacleTransforms;
         public float DecayFactor;
         public float DeltaTime;
         public float MinDistToObstacleSQ;
-
-        public void Execute(ref LocalTransform transform, ref Velocity velocity)
+        public void Execute(ref PGDLocalTransform transform, ref Velocity velocity)
         {
             if (velocity.Value.Equals(float2.zero))
             {
@@ -57,8 +58,7 @@ namespace Tutorials.Kickball.Step4
             }
 
             var magnitude = math.length(velocity.Value);
-            var newPosition = transform.Position +
-                         new float3(velocity.Value.x, 0, velocity.Value.y) * DeltaTime;
+            var newPosition = transform.Position + new float3(velocity.Value.x, 0, velocity.Value.y) * DeltaTime;
             foreach (var obstacleTransform in ObstacleTransforms)
             {
                 if (math.distancesq(newPosition, obstacleTransform.Position) <= MinDistToObstacleSQ)
@@ -69,7 +69,6 @@ namespace Tutorials.Kickball.Step4
             }
 
             transform.Position = newPosition;
-
             var newMagnitude = math.max(magnitude - DecayFactor, 0);
             velocity.Value = math.normalizesafe(velocity.Value) * newMagnitude;
         }

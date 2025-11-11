@@ -1,3 +1,14 @@
 fileFormatVersion: 2
-guid: 12f5a5e5d2484c17b330d62b791c9315
-timeCreated: 1676956824
+guid: DnhJsHuoBn5q9x6KMMX+SpZ/e/naln2Jp78pJ9c2LXSgYIU7/fi76Zw=
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - ObstaclePrefab: {fileID: 8747683827673579469, guid: 4f09bdc775cd24a54ae62a732dbed100, type: 3}
+  - PlayerPrefab: {fileID: 655516639402675985, guid: 5a99b285ebda843468756b3773ae1c24, type: 3}
+  - BallPrefab: {fileID: 5706561732984709095, guid: 3b45074bbeb6b463ca50ad8c0b7b1c4e, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

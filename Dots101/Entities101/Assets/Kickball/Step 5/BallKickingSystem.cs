@@ -7,42 +7,38 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
+using PGD;
+using PGD.Jobs;
 
 namespace Tutorials.Kickball.Step5
 {
     // UpdateBefore BallMovementSystem so that the ball movement is affected by a kick in the same frame.
-    [UpdateBefore(typeof(BallMovementSystem))]
-    [UpdateBefore(typeof(TransformSystemGroup))]
-    public partial struct BallKickingSystem : ISystem
+    [UpdateSystemBefore(typeof(BallMovementSystem))]
+    [UpdateSystemBefore(typeof(TransformSystemGroup))]
+    public partial class BallKickingSystem : PGDSystemEnhanced
     {
         [BurstCompile]
-        public void OnCreate(ref SystemState state)
+        protected override void OnCreate(ref PGDSystemState state)
         {
             state.RequireForUpdate<BallKicking>();
             state.RequireForUpdate<Config>();
         }
 
         [BurstCompile]
-        public void OnUpdate(ref SystemState state)
+        protected override void OnUpdate(ref PGDSystemState state)
         {
-            var config = SystemAPI.GetSingleton<Config>();
-
+            var config = PGDGameContext.GetSingleton<Config>();
             if (!Input.GetKeyDown(KeyCode.Space))
             {
                 return;
             }
 
             // For every player, add an impact velocity to every ball in kicking range.
-            foreach (var playerTransform in
-                     SystemAPI.Query<RefRO<LocalTransform>>()
-                         .WithAll<Player>())
+            foreach (var playerTransform in PGDGameContext.QueryForeach<PGDRefRO<PGDLocalTransform>>().WithAll<Player>())
             {
-                foreach (var (ballTransform, velocity) in
-                         SystemAPI.Query<RefRO<LocalTransform>, RefRW<Velocity>>()
-                             .WithAll<Ball>())
+                foreach (var(ballTransform, velocity)in PGDGameContext.QueryForeach<PGDRefRO<PGDLocalTransform>, PGDRefRW<Velocity>>().WithAll<Ball>())
                 {
                     float distSQ = math.distancesq(playerTransform.ValueRO.Position, ballTransform.ValueRO.Position);
-
                     if (distSQ <= config.BallKickingRangeSQ)
                     {
                         var playerToBall = ballTransform.ValueRO.Position.xz - playerTransform.ValueRO.Position.xz;

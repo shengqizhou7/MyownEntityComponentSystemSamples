@@ -32,11 +32,16 @@ namespace Tutorials.Kickball.Step3
             var minDistSQ = minDist * minDist;
 
             // For every ball entity, we need to read and modify its LocalTransform and Velocity.
-            foreach (var (ballTransform, velocity) in
-                     SystemAPI.Query<RefRW<LocalTransform>, RefRW<Velocity>>()
-                         .WithAll<Ball>()
-                         .WithDisabled<Carry>())  // Relevant in Step 5
+            foreach (var (ballTransform, velocity, carry) in
+                     SystemAPI.Query<RefRW<LocalTransform>, RefRW<Velocity>, RefRO<Carry>>()
+                         .WithAll<Ball>())
             {
+                // Skip the ball if it's being carried (Relevant in Step 5)
+                if (carry.ValueRO.IsEnabled)
+                {
+                    continue;
+                }
+                
                 // Skip the ball if it isn't moving!
                 if (velocity.ValueRO.Value.Equals(float2.zero))
                 {

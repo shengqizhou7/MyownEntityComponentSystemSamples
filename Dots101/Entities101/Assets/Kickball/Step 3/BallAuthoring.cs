@@ -18,8 +18,8 @@ namespace Tutorials.Kickball.Step3
                 AddComponent<Velocity>(entity);
 
                 // Used in Step 5
-                AddComponent<Carry>(entity);
-                SetComponentEnabled<Carry>(entity, false);
+                AddComponent(entity, new Carry { IsEnabled = false });
+                
             }
         }
     }

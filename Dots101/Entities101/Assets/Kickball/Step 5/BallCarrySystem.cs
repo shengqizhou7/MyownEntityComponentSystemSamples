@@ -31,8 +31,11 @@ namespace Tutorials.Kickball.Step5
                      SystemAPI.Query<RefRW<LocalTransform>, RefRO<Carry>>()
                          .WithAll<Ball>())
             {
-                var playerTransform = state.EntityManager.GetComponentData<LocalTransform>(carrier.ValueRO.Target);
-                ballTransform.ValueRW.Position = playerTransform.Position + CarryOffset;
+                if (carrier.ValueRO.IsEnabled)
+                {
+                    var playerTransform = state.EntityManager.GetComponentData<LocalTransform>(carrier.ValueRO.Target);
+                    ballTransform.ValueRW.Position = playerTransform.Position + CarryOffset;
+                }
             }
 
             if (!Input.GetKeyDown(KeyCode.C))
@@ -40,35 +43,34 @@ namespace Tutorials.Kickball.Step5
                 return;
             }
 
-            foreach (var (playerTransform, playerEntity) in
-                     SystemAPI.Query<RefRW<LocalTransform>>()
+            foreach (var (playerTransform, carry, playerEntity) in
+                     SystemAPI.Query<RefRW<LocalTransform>, RefRO<Carry>>()
                          .WithAll<Player>()
                          .WithEntityAccess())
             {
-                if (state.EntityManager.IsComponentEnabled<Carry>(playerEntity))
+                if (carry.ValueRO.IsEnabled)
                 {
                     // put down ball
-                    var carried = state.EntityManager.GetComponentData<Carry>(playerEntity);
+                    var carried = carry.ValueRO;
 
                     var ballTransform = state.EntityManager.GetComponentData<LocalTransform>(carried.Target);
                     ballTransform.Position = playerTransform.ValueRO.Position;
                     state.EntityManager.SetComponentData(carried.Target, ballTransform);
 
-                    state.EntityManager.SetComponentEnabled<Carry>(carried.Target, false);
-                    state.EntityManager.SetComponentEnabled<Carry>(playerEntity, false);
-
-                    state.EntityManager.SetComponentData(carried.Target, new Carry());
-                    state.EntityManager.SetComponentData(playerEntity, new Carry());
+                    state.EntityManager.SetComponentData(carried.Target, new Carry { IsEnabled = false });
+                    state.EntityManager.SetComponentData(playerEntity, new Carry { IsEnabled = false });
                 }
                 else
                 {
                     // pick up first ball in range
-                    foreach (var (ballTransform, ballEntity) in
-                             SystemAPI.Query<RefRO<LocalTransform>>()
+                    foreach (var (ballTransform, ballCarry, ballEntity) in
+                             SystemAPI.Query<RefRO<LocalTransform>, RefRO<Carry>>()
                                  .WithAll<Ball>()
-                                 .WithDisabled<Carry>()
                                  .WithEntityAccess())
                     {
+                        if (ballCarry.ValueRO.IsEnabled)
+                            continue;
+
                         float distSQ = math.distancesq(playerTransform.ValueRO.Position,
                             ballTransform.ValueRO.Position);
 
@@ -76,11 +78,8 @@ namespace Tutorials.Kickball.Step5
                         {
                             state.EntityManager.SetComponentData(ballEntity, new Velocity());
 
-                            state.EntityManager.SetComponentData(playerEntity, new Carry { Target = ballEntity });
-                            state.EntityManager.SetComponentData(ballEntity, new Carry { Target = playerEntity });
-
-                            state.EntityManager.SetComponentEnabled<Carry>(playerEntity, true);
-                            state.EntityManager.SetComponentEnabled<Carry>(ballEntity, true);
+                            state.EntityManager.SetComponentData(playerEntity, new Carry { Target = ballEntity, IsEnabled = true });
+                            state.EntityManager.SetComponentData(ballEntity, new Carry { Target = playerEntity, IsEnabled = true });
                             break;
                         }
                     }

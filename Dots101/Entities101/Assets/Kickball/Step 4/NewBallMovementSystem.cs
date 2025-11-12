@@ -40,7 +40,6 @@ namespace Tutorials.Kickball.Step4
 
     // The implicit query of this IJobEntity matches all entities having LocalTransform, Velocity, and Ball components.
     [WithAll(typeof(Ball))]
-    [WithDisabled(typeof(Carry))]  // Relevant in Step 5
     [BurstCompile]
     public partial struct BallMovementJob : IJobEntity
     {
@@ -49,8 +48,14 @@ namespace Tutorials.Kickball.Step4
         public float DeltaTime;
         public float MinDistToObstacleSQ;
 
-        public void Execute(ref LocalTransform transform, ref Velocity velocity)
+        public void Execute(ref LocalTransform transform, ref Velocity velocity, in Carry carry)
         {
+            // Skip the ball if it's being carried (Relevant in Step 5)
+            if (carry.IsEnabled)
+            {
+                return;
+            }
+            
             if (velocity.Value.Equals(float2.zero))
             {
                 return;

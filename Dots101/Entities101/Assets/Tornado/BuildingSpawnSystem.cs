@@ -163,14 +163,6 @@ namespace Tutorials.Tornado
                 thickness.ValueRW.Value = random.NextFloat(.25f, .35f);
             }
 
-            var barEntities = query.ToEntityArray(Allocator.Temp);
-
-            for (int i = 0; i < bars.Length; i++)
-            {
-                var cluster = new BarCluster { Value = FindRoot(bars[i].pointA) };
-                state.EntityManager.AddSharedComponent(barEntities[i], cluster);
-            }
-
             var singletonEntity = SystemAPI.GetSingletonEntity<Config>();
             state.EntityManager.AddComponentData(singletonEntity, pointData);
 
@@ -197,10 +189,5 @@ namespace Tutorials.Tornado
         public NativeArray<float3> previous;
         public NativeArray<byte> connectivity;
         public NativeReference<int> count;
-    }
-
-    public struct BarCluster : ISharedComponentData
-    {
-        public int Value;
     }
 }

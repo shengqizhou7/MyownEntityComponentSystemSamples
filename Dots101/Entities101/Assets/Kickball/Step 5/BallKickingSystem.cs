@@ -2,6 +2,7 @@ using Tutorials.Kickball.Execute;
 using Tutorials.Kickball.Step1;
 using Tutorials.Kickball.Step2;
 using Tutorials.Kickball.Step3;
+using Tutorials.Kickball.Step4;
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -13,6 +14,7 @@ namespace Tutorials.Kickball.Step5
     // UpdateBefore BallMovementSystem so that the ball movement is affected by a kick in the same frame.
     [UpdateBefore(typeof(BallMovementSystem))]
     [UpdateBefore(typeof(TransformSystemGroup))]
+    [UpdateBefore(typeof(NewBallMovementSystem))]
     public partial struct BallKickingSystem : ISystem
     {
         [BurstCompile]

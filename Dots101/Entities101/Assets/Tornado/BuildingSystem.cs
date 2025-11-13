@@ -41,17 +41,29 @@ namespace Tutorials.Tornado
                 tornadoPosition = Position(time),
             }.Schedule(pointData.count.Value, 64, state.Dependency);
 
-            var barQuery = SystemAPI.QueryBuilder().WithAll<Bar>().Build();
+            state.EntityManager.GetAllUniqueSharedComponents<BarCluster>(out var clusters, Allocator.Temp);
 
-            state.Dependency = new BarUpdateJob
+            var barQuery = SystemAPI.QueryBuilder().WithAll<Bar, BarCluster>().Build();
+            var barDataHandle = SystemAPI.GetComponentTypeHandle<Bar>();
+            var dependencies = new NativeArray<JobHandle>(clusters.Length, Allocator.Temp);
+
+            var barJob = new BarUpdateJob
             {
                 config = config,
-                barDataTypeHandle = SystemAPI.GetComponentTypeHandle<Bar>(),
+                barDataTypeHandle = barDataHandle,
                 current = pointData.current,
                 previous = pointData.previous,
                 connectivity = pointData.connectivity,
                 counter = pointData.count
-            }.ScheduleParallel(barQuery, state.Dependency);
+            };
+
+            for (int i = 0; i < clusters.Length; i++)
+            {
+                barQuery.SetSharedComponentFilter(clusters[i]);
+                dependencies[i] = barJob.Schedule(barQuery, state.Dependency);
+            }
+
+            state.Dependency = JobHandle.CombineDependencies(dependencies);
         }
 
         public static float TornadoSway(float y, float time)

@@ -15,7 +15,8 @@ namespace Tutorials.Kickball.Step2
                 AddComponent<Player>(entity);
 
                 // Used in Step 5
-                AddComponent(entity, new Carry { IsEnabled = false });
+                AddComponent<Carry>(entity);
+                AddComponent(entity, new CarryEnabled { Value = false });
             }
         }
     }
@@ -29,6 +30,11 @@ namespace Tutorials.Kickball.Step2
     {
         // on a ball, this denotes the player carrying the ball; on a player, this denotes the ball being carried
         public Entity Target;
-        public bool IsEnabled;
+    }
+
+    // Used in Step 5 - Component to indicate if carry is enabled
+    public struct CarryEnabled : IComponentData
+    {
+        public bool Value;
     }
 }

@@ -48,10 +48,10 @@ namespace Tutorials.Kickball.Step4
         public float DeltaTime;
         public float MinDistToObstacleSQ;
 
-        public void Execute(ref LocalTransform transform, ref Velocity velocity, in Carry carry)
+        public void Execute(ref LocalTransform transform, ref Velocity velocity, in CarryEnabled carryEnabled)
         {
             // Skip the ball if it's being carried (Relevant in Step 5)
-            if (carry.IsEnabled)
+            if (carryEnabled.Value)
             {
                 return;
             }

@@ -27,11 +27,11 @@ namespace Tutorials.Kickball.Step5
             var config = SystemAPI.GetSingleton<Config>();
 
             // move carried balls
-            foreach (var (ballTransform, carrier) in
-                     SystemAPI.Query<RefRW<LocalTransform>, RefRO<Carry>>()
+            foreach (var (ballTransform, carrier, carryEnabled) in
+                     SystemAPI.Query<RefRW<LocalTransform>, RefRO<Carry>, RefRO<CarryEnabled>>()
                          .WithAll<Ball>())
             {
-                if (carrier.ValueRO.IsEnabled)
+                if (carryEnabled.ValueRO.Value)
                 {
                     var playerTransform = state.EntityManager.GetComponentData<LocalTransform>(carrier.ValueRO.Target);
                     ballTransform.ValueRW.Position = playerTransform.Position + CarryOffset;
@@ -43,12 +43,12 @@ namespace Tutorials.Kickball.Step5
                 return;
             }
 
-            foreach (var (playerTransform, carry, playerEntity) in
-                     SystemAPI.Query<RefRW<LocalTransform>, RefRO<Carry>>()
+            foreach (var (playerTransform, carry, carryEnabled, playerEntity) in
+                     SystemAPI.Query<RefRW<LocalTransform>, RefRO<Carry>, RefRO<CarryEnabled>>()
                          .WithAll<Player>()
                          .WithEntityAccess())
             {
-                if (carry.ValueRO.IsEnabled)
+                if (carryEnabled.ValueRO.Value)
                 {
                     // put down ball
                     var carried = carry.ValueRO;
@@ -57,18 +57,18 @@ namespace Tutorials.Kickball.Step5
                     ballTransform.Position = playerTransform.ValueRO.Position;
                     state.EntityManager.SetComponentData(carried.Target, ballTransform);
 
-                    state.EntityManager.SetComponentData(carried.Target, new Carry { IsEnabled = false });
-                    state.EntityManager.SetComponentData(playerEntity, new Carry { IsEnabled = false });
+                    state.EntityManager.SetComponentData(carried.Target, new CarryEnabled { Value = false });
+                    state.EntityManager.SetComponentData(playerEntity, new CarryEnabled { Value = false });
                 }
                 else
                 {
                     // pick up first ball in range
-                    foreach (var (ballTransform, ballCarry, ballEntity) in
-                             SystemAPI.Query<RefRO<LocalTransform>, RefRO<Carry>>()
+                    foreach (var (ballTransform, ballCarry, ballCarryEnabled, ballEntity) in
+                             SystemAPI.Query<RefRO<LocalTransform>, RefRO<Carry>, RefRO<CarryEnabled>>()
                                  .WithAll<Ball>()
                                  .WithEntityAccess())
                     {
-                        if (ballCarry.ValueRO.IsEnabled)
+                        if (ballCarryEnabled.ValueRO.Value)
                             continue;
 
                         float distSQ = math.distancesq(playerTransform.ValueRO.Position,
@@ -78,8 +78,11 @@ namespace Tutorials.Kickball.Step5
                         {
                             state.EntityManager.SetComponentData(ballEntity, new Velocity());
 
-                            state.EntityManager.SetComponentData(playerEntity, new Carry { Target = ballEntity, IsEnabled = true });
-                            state.EntityManager.SetComponentData(ballEntity, new Carry { Target = playerEntity, IsEnabled = true });
+                            state.EntityManager.SetComponentData(playerEntity, new Carry { Target = ballEntity });
+                            state.EntityManager.SetComponentData(ballEntity, new Carry { Target = playerEntity });
+                            
+                            state.EntityManager.SetComponentData(playerEntity, new CarryEnabled { Value = true });
+                            state.EntityManager.SetComponentData(ballEntity, new CarryEnabled { Value = true });
                             break;
                         }
                     }

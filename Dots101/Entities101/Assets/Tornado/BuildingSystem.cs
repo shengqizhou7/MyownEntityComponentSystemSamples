@@ -5,30 +5,26 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using PGD;
+using PGD.Jobs;
 
 namespace Tutorials.Tornado
 {
-    /*
-     * Updates the bars and joints of the buildings.
-     * The force of the tornado breaks the joints.
-     */
-    [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
-    public partial struct BuildingSystem : ISystem
+    public partial class BuildingSystem : PGDJobSystemBase
     {
         [BurstCompile]
-        public void OnCreate(ref SystemState state)
+        protected override void OnCreate(ref PGDSystemState state)
         {
             state.RequireForUpdate<Config>();
             state.RequireForUpdate<PointArrays>();
         }
 
         [BurstCompile]
-        public void OnUpdate(ref SystemState state)
+        protected override void OnUpdate(ref PGDSystemState state)
         {
-            var config = SystemAPI.GetSingleton<Config>();
-            var pointData = SystemAPI.GetSingleton<PointArrays>();
-            var time = (float)SystemAPI.Time.ElapsedTime;
-
+            var config = PGDGameContext.GetSingleton<Config>();
+            var pointData = PGDGameContext.GetSingleton<PointArrays>();
+            var time = (float)PGDGameContext.Time.ElapsedTime;
             state.Dependency = new PointUpdateJob
             {
                 config = config,
@@ -40,13 +36,11 @@ namespace Tutorials.Tornado
                 tornadoFader = math.saturate(time / 10),
                 tornadoPosition = Position(time),
             }.Schedule(pointData.count.Value, 64, state.Dependency);
-
-            var barQuery = SystemAPI.QueryBuilder().WithAll<Bar>().Build();
-
+            var barQuery = PGDGameContext.BuildQuery().WithAllComponents(IComponents.Get<Bar>());
             state.Dependency = new BarUpdateJob
             {
                 config = config,
-                barDataTypeHandle = SystemAPI.GetComponentTypeHandle<Bar>(),
+                barDataTypeHandle = PGDGameContext.GetComponentTypeHandle<Bar>(),
                 current = pointData.current,
                 previous = pointData.previous,
                 connectivity = pointData.connectivity,
@@ -58,7 +52,6 @@ namespace Tutorials.Tornado
         {
             return math.sin(y / 5f + time / 4f) * 3f;
         }
-
 
         public static float2 Position(float time)
         {
@@ -77,17 +70,14 @@ namespace Tutorials.Tornado
         public uint randomSeed;
         public float tornadoFader;
         public float2 tornadoPosition;
-
         public void Execute(int i)
         {
-            if (connectivity[i] == byte.MaxValue) return;
-
+            if (connectivity[i] == byte.MaxValue)
+                return;
             var point = currentPoints[i];
             var start = point;
-
             var previous = previousPoints[i];
             previous.y += .01f;
-
             // tornado force
             float tdx = tornadoPosition.x + BuildingSystem.TornadoSway(point.y, time) - point.x;
             float tdz = tornadoPosition.y - point.z;
@@ -98,21 +88,17 @@ namespace Tutorials.Tornado
             {
                 float force = 1f - tornadoDist / config.TornadoMaxForceDist;
                 float yFader = math.saturate(1f - point.y / config.TornadoHeight);
-                force *= tornadoFader * config.TornadoForce *
-                         Random.CreateFromIndex(randomSeed ^ (uint)i).NextFloat(-.3f, 1.3f);
-
+                force *= tornadoFader * config.TornadoForce * Random.CreateFromIndex(randomSeed ^ (uint)i).NextFloat(-.3f, 1.3f);
                 var forceVec = new float3
                 {
                     x = -tdz + tdx * config.TornadoInwardForce * yFader,
                     y = config.TornadoUpForce,
                     z = tdx + tdz * config.TornadoInwardForce * yFader,
                 };
-
                 previous -= forceVec * force;
             }
 
             point += (point - previous) * (1 - config.BarDamping);
-
             previous = start;
             if (point.y < 0f)
             {
@@ -128,30 +114,22 @@ namespace Tutorials.Tornado
     }
 
     [BurstCompile]
-    struct BarUpdateJob : IJobChunk
+    struct BarUpdateJob : IJobParallel
     {
         public Config config;
-
         [NativeDisableContainerSafetyRestriction]
         public ComponentTypeHandle<Bar> barDataTypeHandle;
-
         [NativeDisableContainerSafetyRestriction]
         public NativeArray<float3> current;
-
         [NativeDisableContainerSafetyRestriction]
         public NativeArray<float3> previous;
-
         [NativeDisableContainerSafetyRestriction]
         public NativeArray<byte> connectivity;
-
         [NativeDisableContainerSafetyRestriction]
         public NativeReference<int> counter;
-
-        public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask,
-            in v128 chunkEnabledMask)
+        public void Execute(in PGDArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
         {
             var barData = chunk.GetNativeArray(ref barDataTypeHandle);
-
             for (int i = 0; i < chunk.Count; i++)
             {
                 var bar = barData[i];
@@ -161,14 +139,10 @@ namespace Tutorials.Tornado
                 var currentB = current[iB];
                 var anchorA = connectivity[iA] == byte.MaxValue;
                 var anchorB = connectivity[iB] == byte.MaxValue;
-
                 var d = currentB - currentA;
-
                 float dist = math.length(d);
                 float extraDist = dist - bar.length;
-
                 var push = d / dist * extraDist;
-
                 if (!anchorA && !anchorB)
                 {
                     currentA += push / 2;
@@ -185,7 +159,6 @@ namespace Tutorials.Tornado
 
                 current[bar.pointA] = currentA;
                 current[bar.pointB] = currentB;
-
                 if (math.abs(extraDist) > config.BarBreakResistance)
                 {
                     if (connectivity[iB] > 1 && !anchorB)
@@ -206,7 +179,6 @@ namespace Tutorials.Tornado
         {
             var newIdx = counter.AtomicAdd(1);
             connectivity[index] = (byte)(connectivity[index] - 1);
-
             connectivity[newIdx] = 1;
             current[newIdx] = current[index];
             previous[newIdx] = previous[index];

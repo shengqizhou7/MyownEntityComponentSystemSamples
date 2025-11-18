@@ -4,28 +4,27 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Scenes;
+using PGD;
+using PGD.Jobs;
 
 namespace Tutorials.Tornado
 {
-    [UpdateInGroup(typeof(InitializationSystemGroup))]
-    [UpdateAfter(typeof(SceneSystemGroup))]
-    public partial struct BuildingSpawnSystem : ISystem
+    [UpdateSystemAfter(typeof(SceneSystemGroup))]
+    public partial class BuildingSpawnSystem : PGDSystemEnhanced
     {
         [BurstCompile]
-        public void OnCreate(ref SystemState state)
+        protected override void OnCreate(ref PGDSystemState state)
         {
             state.RequireForUpdate<Config>();
         }
 
         [BurstCompile]
-        public void OnUpdate(ref SystemState state)
+        protected override void OnUpdate(ref PGDSystemState state)
         {
-            var config = SystemAPI.GetSingleton<Config>();
+            var config = PGDGameContext.GetSingleton<Config>();
             var random = Random.CreateFromIndex(1234);
-
             var points = new NativeList<float3>(Allocator.Temp);
             var connectivity = new NativeList<byte>(Allocator.Temp);
-
             // buildings
             for (int i = 0; i < 35; i++)
             {
@@ -37,13 +36,10 @@ namespace Tutorials.Tornado
                 {
                     points.Add(new float3(pos.x + spacing, j * spacing, pos.z - spacing));
                     connectivity.Add(anchor);
-
                     points.Add(new float3(pos.x - spacing, j * spacing, pos.z - spacing));
                     connectivity.Add(anchor);
-
                     points.Add(new float3(pos.x, j * spacing, pos.z + spacing));
                     connectivity.Add(anchor);
-
                     anchor = 0;
                 }
             }
@@ -53,19 +49,15 @@ namespace Tutorials.Tornado
             {
                 var posA = new float3(random.NextFloat(-55f, 55f), 0f, random.NextFloat(-55f, 55f));
                 var posB = posA;
-
                 posA.x += random.NextFloat(-.2f, -.1f);
                 posA.y += random.NextFloat(0f, 3f);
                 posA.z += random.NextFloat(.1f, .2f);
                 points.Add(posA);
-
                 connectivity.Add(0);
-
                 posB.x += random.NextFloat(.2f, .1f);
                 posB.y += random.NextFloat(0f, .2f);
                 posB.z += random.NextFloat(-.1f, -.2f);
                 points.Add(posB);
-
                 if (random.NextFloat() < .1f)
                     connectivity.Add(byte.MaxValue);
                 else
@@ -73,7 +65,6 @@ namespace Tutorials.Tornado
             }
 
             var pointCount = points.Length;
-
             void IncreaseConnectivity(int index)
             {
                 var value = connectivity[index];
@@ -85,7 +76,6 @@ namespace Tutorials.Tornado
 
             var bars = new NativeList<Bar>(Allocator.Temp);
             var colors = new NativeList<float4>(Allocator.Temp);
-
             for (int i = 0; i < points.Length; i++)
             {
                 for (int j = i + 1; j < points.Length; j++)
@@ -96,10 +86,8 @@ namespace Tutorials.Tornado
                     {
                         IncreaseConnectivity(i);
                         IncreaseConnectivity(j);
-
                         var length = math.sqrt(lengthsq);
                         bars.Add(new Bar { pointA = i, pointB = j, length = length });
-
                         float upDot = math.acos(math.abs(math.dot(new float3(0, 1, 0), delta / length))) / math.PI;
                         colors.Add(new float4(new float3(upDot * random.NextFloat(.7f, 1f)), 1f));
                     }
@@ -108,7 +96,6 @@ namespace Tutorials.Tornado
 
             var dsParent = new NativeArray<int>(points.Length, Allocator.Temp);
             var dsSize = new NativeArray<int>(points.Length, Allocator.Temp);
-
             for (int i = 0; i < dsParent.Length; i++)
             {
                 dsParent[i] = i;
@@ -117,7 +104,8 @@ namespace Tutorials.Tornado
 
             int FindRoot(int i)
             {
-                if (dsParent[i] == i) return i;
+                if (dsParent[i] == i)
+                    return i;
                 dsParent[i] = FindRoot(dsParent[i]);
                 return dsParent[i];
             }
@@ -126,9 +114,8 @@ namespace Tutorials.Tornado
             {
                 var a = FindRoot(bars[i].pointA);
                 var b = FindRoot(bars[i].pointB);
-
-                if (a == b) continue;
-
+                if (a == b)
+                    continue;
                 if (dsSize[a] < dsSize[b])
                 {
                     (a, b) = (b, a);
@@ -145,7 +132,6 @@ namespace Tutorials.Tornado
                 connectivity = new NativeArray<byte>(bars.Length * 2, Allocator.Persistent),
                 count = new NativeReference<int>(pointCount, Allocator.Persistent)
             };
-
             for (int i = 0; i < points.Length; i++)
             {
                 pointData.current[i] = points[i];
@@ -153,28 +139,26 @@ namespace Tutorials.Tornado
                 pointData.connectivity[i] = connectivity[i];
             }
 
-            state.EntityManager.Instantiate(config.BarPrefab, bars.Length, Allocator.Temp);
-            var query = SystemAPI.QueryBuilder().WithAll<Bar, URPMaterialPropertyBaseColor>().Build();
+            state.World.Instantiate(config.BarPrefab, bars.Length, Allocator.Temp);
+            var query = PGDGameContext.BuildQuery().WithAllComponents(IComponents.Get<Bar, URPMaterialPropertyBaseColor>());
             query.CopyFromComponentDataArray(bars.AsArray());
             query.CopyFromComponentDataArray(colors.AsArray().Reinterpret<URPMaterialPropertyBaseColor>());
-
-            foreach (var thickness in SystemAPI.Query<RefRW<BarThickness>>())
+            foreach (var thickness in PGDGameContext.QueryForeach<PGDRefRW<BarThickness>>())
             {
                 thickness.ValueRW.Value = random.NextFloat(.25f, .35f);
             }
 
-            var singletonEntity = SystemAPI.GetSingletonEntity<Config>();
-            state.EntityManager.AddComponentData(singletonEntity, pointData);
-
+            var singletonEntity = PGDGameContext.GetSingletonEntity<Config>();
+            singletonEntity.AddComponent(pointData);
             state.Enabled = false;
         }
 
         [BurstCompile]
-        public void OnDestroy(ref SystemState state)
+        protected override void OnDestroy(ref PGDSystemState state)
         {
-            if (SystemAPI.HasSingleton<PointArrays>())
+            if (PGDGameContext.HasSingleton<PointArrays>())
             {
-                var points = SystemAPI.GetSingleton<PointArrays>();
+                var points = PGDGameContext.GetSingleton<PointArrays>();
                 points.current.Dispose();
                 points.previous.Dispose();
                 points.connectivity.Dispose();
@@ -183,7 +167,7 @@ namespace Tutorials.Tornado
         }
     }
 
-    public struct PointArrays : IComponentData
+    public struct PointArrays : IComponent
     {
         public NativeArray<float3> current;
         public NativeArray<float3> previous;

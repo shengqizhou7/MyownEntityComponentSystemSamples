@@ -1,21 +1,23 @@
 using UnityEngine;
 using Unity.Entities;
+using PGD;
+using PGD.Jobs;
 
 namespace Tutorials.Tornado
 {
     public class ParticleAuthoring : MonoBehaviour
     {
-        class Baker : Baker<ParticleAuthoring>
+        class Baker : PGDHybrid<ParticleAuthoring>
         {
-            public override void Bake(ParticleAuthoring authoring)
+            public override void Handle(ParticleAuthoring authoring)
             {
-                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                var entity = GetHybridEntity();
                 AddComponent<Particle>(entity);
             }
         }
     }
 
-    public struct Particle : IComponentData
+    public struct Particle : IComponent
     {
         public float radiusMult;
     }
